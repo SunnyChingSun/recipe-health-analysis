@@ -1,3 +1,15 @@
-remote_theme: pages-themes/cayman@v0.2.0
-plugins:
-- jekyll-remote-theme
+title: "Beyond the Label: Are 'Healthy' Recipes Really Healthy?"
+description: "A DSC 80 Final Project by Sunny Sun"
+theme: jekyll-theme-minimal
+
+# Customize the appearance
+logo: /assets/profile.png  # optional – if you have a logo or icon
+show_downloads: false
+
+# Social (optional, add if you want to link)
+github:
+  is_project_page: true
+
+# Markdown rendering
+markdown: kramdown
+highlighter: rouge
