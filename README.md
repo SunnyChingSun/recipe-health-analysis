@@ -210,15 +210,14 @@ These tests provide evidence that some observed features help explain missingnes
 
 To investigate whether “healthy”-labeled recipes are genuinely healthier than those without such labels, I conducted a permutation test comparing the average `healthy_index` for the two groups.
 
-### Hypotheses
-
-- **Null Hypothesis (H₀):** The mean `healthy_index` of recipes labeled as "healthy" is equal to that of recipes without the label. Any observed difference is due to random variation.
-- **Alternative Hypothesis (H₁):** Recipes labeled as "healthy" have a different mean `healthy_index` than those not labeled "healthy".
+### Hypothesis Setup
+- **Null Hypothesis (H0)**: There is no difference in healthy_index between recipes labeled as "healthy" and those not labeled as "healthy"
+- **Alternative Hypothesis (H1)**: Recipes labeled as "healthy" have a different healthy_index than those not labeled as "healthy"
 
 This is a two-sided test because I want to detect any difference in either direction — whether the label corresponds to being healthier or unhealthier.
 
-- **Test Statistic:** Absolute difference in group means.
-- **Significance Level:** α = 0.05
+- **Test Statistic**: Absolute difference in means of healthy_index between the two groups
+- **Significance Level**: α = 0.05
 
 ### Results
 
@@ -227,44 +226,24 @@ This is a two-sided test because I want to detect any difference in either direc
 - **Observed Difference:** 0.057
 - **p-value:** 0.002
 
-Since the p-value is less than 0.05, we reject the null hypothesis. There is statistically significant evidence that the mean `healthy_index` differs between the two groups.
+Since the p-value is **0.002**, we reject the null hypothesis. This suggests that recipes labeled as "healthy" **do** have a different (and in this case, lower) healthy_index on average, meaning they are indeed **slightly healthier** according to my nutritional scoring system.
+
+However, while statistically significant, the **magnitude** of the difference is relatively small, indicating that the label may reflect general trends but **isn't a perfect indicator** of nutritional quality.
 
 <iframe
-  src="assets/healthy_label_vs_index_perm_test.html"
+  src="assets/permutation_test_healthy_index.html"
   width="800"
   height="550"
   frameborder="0"
 ></iframe>
 
-### Interpretation
-
-Although labeled recipes tend to have slightly better (less negative) healthy index values, the overlap in distributions suggests these labels are imperfect proxies for nutritional quality. While the difference is statistically significant, its practical significance is debatable. This reinforces the motivation for creating a more data-driven health indicator.
-
 ## Framing a Prediction Problem
 
-The prediction task in this project is to estimate the **average user rating** (`average_rating`) of a recipe based on its nutritional attributes, ingredient complexity, and label metadata.
+In this project, I aim to **predict the average user rating** (`average_rating`) of a recipe using features available at the time of posting, such as nutrition facts, ingredient count, cooking time, and health-related tags. This is a **regression** problem since the target is a continuous value from 0 to 5.
 
-### Problem Type
+I chose **RMSE (Root Mean Squared Error)** as the evaluation metric because it penalizes larger errors more heavily and provides a clear sense of how far off predictions are in rating units.
 
-This is a **regression** problem, as the response variable (`average_rating`) is continuous and ranges from 0 to 5.
-
-### Response Variable
-
-- **`average_rating`**: The average score assigned to each recipe by users on Food.com.
-
-This variable was selected because it reflects user perception and satisfaction, which are critical to evaluating recipe popularity and success.
-
-### Features Used
-
-All features used in the model are available at the **time of posting** (e.g., nutrition facts, tags, and ingredient count). No user reviews or later-submitted ratings are included as features, to ensure proper data leakage prevention.
-
-### Evaluation Metric
-
-- **Metric Chosen:** RMSE (Root Mean Squared Error)
-
-RMSE is a standard metric for regression tasks. It penalizes large errors more heavily than small ones and gives an interpretable estimate of how far off our model’s predictions are from true values (in rating units). I chose RMSE over alternatives like MAE because it is more sensitive to outliers, which helps flag unusually misrated recipes.
-
-This problem fits within the larger theme of this project: understanding how nutritional content and health labels affect both perception and popularity of recipes.
+All features used—like `healthy_index`, number of ingredients, `minutes`, and health labels—are available before any user ratings are submitted, ensuring that the model does not suffer from data leakage.
 
 
 ## Baseline Model
