@@ -5,46 +5,102 @@ by Sunny Sun (chs019@ucsd.edu)
 
 ## Introduction
 
-I like food and I like cooking, and I’m also really into staying on a healthy diet—so I’m pretty familiar with nutrition data. That’s why I’ve always wondered if recipes labeled as “healthy” actually live up to their name. Do these labels reflect real nutritional value, or are they just used to make recipes sound better? In this project, I explore that question using the Recipes and Ratings dataset from Food.com.
+I like food and I like cooking, and I’m also really into staying on a healthy diet—so I’m pretty familiar with nutrition data. That’s why I’ve always wondered if recipes labeled as “healthy” actually live up to their name. Do these labels reflect real nutritional value, or are they just used to make recipes sound better? In this project, I explore that question using the `Recipes` and `Ratings` dataset from Food.com.
 
-My main research question is: **Are recipes labeled as “healthy” actually healthier based on nutrition facts, and does that label influence user ratings?** To answer this, I created a Healthy Index using normalized nutrition values, compared labeled vs. unlabeled recipes, and predicted user ratings based on both nutrition and label metadata.
+My main research question is: **Are recipes labeled as “healthy” actually healthier based on nutrition facts, and does that label influence user ratings?** 
 
-The dataset contains about 230,000 recipes and includes metadata such as prep time, ingredient count, nutrition info (in %DV), and user-submitted ratings. Key columns include:
+This question is especially relevant for consumers who rely on health labels to make dietary decisions. If labels like "healthy" or "low fat" are used inconsistently or inaccurately, they may mislead users into making choices that don't align with their health goals. For recipe platform developers and data scientists, understanding this gap could inform improvements to tagging systems and recommender algorithms.
+
+### Dataset
+**`Recipes` dataset has 83782 rows where each row indicates a unique recipe and contains the following 12 columns:**
+
+| Column         | Description                                                                                                                                       |
+|:---------------|:--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `'name'`        | Recipe name                                                                                                                                       |
+| `'id'`             | Recipe ID                                                                                                                                         |
+| `'minutes'`        | Minutes to prepare recipe                                                                                                                         |
+| `'contributor_id'` | User ID who submitted this recipe                                                                                                                 |
+| `'submitted'`      | Date recipe was submitted                                                                                                                         |
+| `'tags'`          | Food.com tags for recipe                                                                                                                          |
+| `'nutrition'`      | Nutrition information in the form [calories (#), total fat (PDV), sugar (PDV), sodium (PDV), protein (PDV), saturated fat (PDV), carbohydrates (PDV)]; PDV stands for "percentage of daily value" |
+| `'n_steps'`        | Number of steps in recipe                                                                                                                         |
+| `'steps'`          | Text for recipe steps, in order                                                                                                                   |
+| `'description'`    | User-provided description                                                                                                                         |
+
+**`Ratings` dataset has 731927 rows where each row indicates a unique review for a recipe and contains the following 5 columns:**
+
+| Column    | Description         |
+|:----------|:--------------------|
+| `'user_id'`   | User ID             |
+| `'recipe_id'` | Recipe ID           |
+| `'date'`      | Date of interaction |
+| `'rating'`    | Rating given        |
+| `'review'`    | Review text         |
+
+To investigate whether the tags truely reflects the healthiness of the recipe and it's relation to ratings, I parsed the nutrition coloum into 7 nutrients: `calories`, `total_fat`, `sugar`, `sodium`, `protein`, `sat_fat`, and `carbs`. Then I created a quantitative `Healthy Index` from nutrition data, and compared it to the presence of health-related labels in recipe names and tags. Thus, some key columns from the dataset include:
 - `tags`: list of descriptive labels (e.g. “gluten free”, “healthy”)
-- `nutrition`: [calories, total fat, sugar, sodium, protein, saturated fat, carbs] in %DV
+- `nutrition`: [calories (#), total fat (PDV), sugar (PDV), sodium (PDV), protein (PDV), saturated fat (PDV), carbohydrates (PDV)]
 - `name`: recipe title
-- `average_rating`: average user rating (0–5)
+- `rating`: will turned to `average_rating` (0–5)
+- `submitted`: Date recipe was submitted
 
 
 ## Data Cleaning and Exploratory Data Analysis
 
 ### Data Cleaning
 
-To prepare the dataset for analysis, I:
+To begin my analysis, I performed several key data cleaning steps to prepare the dataset for analysis. The original data came in two separate CSV files: `RAW_recipes.csv`, which contained recipe metadata, and `RAW_interactions.csv`, which contained user-submitted ratings. These were merged and cleaned according to the project instructions and additional logic informed by the data structure.
 
-- Merged the recipe metadata with user ratings to compute an `average_rating` column per recipe.
-- Parsed the `nutrition` column into 7 numeric columns: `calories`, `total_fat`, `sugar`, `sodium`, `protein`, `sat_fat`, and `carbs`.
-- Normalized the nutrition values to account for serving size inconsistencies.
-- Created health-related label flags (`healthy`, `low_in_something`, `free_of_something`) based on the presence of keywords in `tags` and `name`.
-- Constructed a custom `healthy_index` that rewards protein and penalizes fat, sugar, sodium, and carbs.
+**Cleaning and Processing Steps:**
 
-Below is a preview of the cleaned DataFrame:
+1. **Merged Datasets:**  
+   I performed a left merge of the recipes and interactions datasets on the `id` column to include rating information for each recipe. This ensured that every recipe retained its original metadata, even if it had no ratings.
 
-```markdown
-| name                                 |   year |   healthy_index |   average_rating | healthy   | low_in_something   | free_of_something   |
-|:-------------------------------------|-------:|----------------:|-----------------:|:----------|:-------------------|:--------------------|
-| 1 brownies in the world    best ever |   2008 |     -0.755058   |                4 | False     | False              | False               |
-| 1 in canada chocolate chip cookies   |   2011 |     -0.700723   |                5 | False     | False              | False               |
-| 412 broccoli casserole               |   2008 |     -0.00513347 |                5 | False     | False              | False               |
-| millionaire pound cake               |   2008 |     -0.769099   |                5 | False     | True               | False               |
-| 2000 meatloaf                        |   2012 |     -0.0430712  |                5 | False     | False              | False               |
-```
+2. **Handled Zero Ratings:**  
+   In the `interactions` data, ratings with a value of `0` are likely placeholders or missing entries. Since 0 is not a valid rating on the Food.com scale (1–5), I replaced them with `np.nan`. This helps avoid skewing averages downward.
+
+3. **Computed Average Ratings:**  
+   I grouped ratings by recipe and calculated an `average_rating` per recipe, then merged this Series back into the main `recipes` DataFrame for easier analysis.
+
+4. **Parsed the `nutrition` Column:**  
+   The original `nutrition` column was a stringified list containing 7 nutrition facts per recipe. I converted it into individual numeric columns:  
+   `calories`, `total_fat`, `sugar`, `sodium`, `protein`, `sat_fat`, and `carbs`.
+
+5. **Normalized Nutrition Values:**  
+   Since serving sizes are inconsistent and not explicitly listed, I normalized all nutrient values *per 100 calories*. This helped standardize comparisons between recipes of different portion sizes.
+
+6. **Generated Health Labels:**  
+   I created binary indicators for whether a recipe was labeled as:
+   - `"healthy"`
+   - `"low in something"` (e.g., “low fat”, “low sodium”)
+   - `"free of something"` (e.g., “gluten free”, “sugar free”)  
+   These were inferred by checking the presence of keywords in both the `tags` and `name` fields.
+
+7. **Created a `healthy_index`:**  
+   To quantify the overall nutrition profile of each recipe, I constructed a custom `healthy_index` based on nutritional guidelines:
+   ```python
+   healthy_index = (
+       -0.015 * total_fat - 0.015 * sugar - 0.010 * sat_fat - 0.010 * carbs + 0.035 * protein
+   )
+   ```
+    Sodium was excluded from the index because many recipes only list "salt" as an ingredient, which results in outlier sodium values that are not always meaningful.
+
+
+The cleanned `recipes` dataframe contains 83756 rows and 27 columns where each rows indicates a unique recipe with average ratings. Since there are too many columns in the dataframe, here only showing the preview of the cleaned dataframe with some key columns:
+
+| name                                 |   healthy_index |   average_rating | healthy   | low_in_something   | free_of_something   |
+|:-------------------------------------|----------------:|-----------------:|:----------|:-------------------|:--------------------|
+| 1 brownies in the world    best ever |     -0.755058   |                4 | False     | False              | False               |
+| 1 in canada chocolate chip cookies   |     -0.700723   |                5 | False     | False              | False               |
+| 412 broccoli casserole               |     -0.00513347 |                5 | False     | False              | False               |
+| millionaire pound cake               |     -0.769099   |                5 | False     | True               | False               |
+| 2000 meatloaf                        |     -0.0430712  |                5 | False     | False              | False               |
 
 
 
 ### Univariate Analysis
 
-The plot below shows the distribution of `average_rating`. Ratings tend to skew toward the high end, with most falling between 4 and 5.
+The plot below shows the distribution of `average_rating`. Ratings tend to skew toward the high end, with most falling between 4 and 5. This suggests that users are generous with ratings or that only well-liked recipes accumulate many ratings.
 
 <iframe
   src="assets/univariate_rating_distribution.html"
@@ -56,8 +112,8 @@ The plot below shows the distribution of `average_rating`. Ratings tend to skew 
 
 
 ### Bivariate Analysis
-
-The following boxplot shows how the presence of health-related labels affects user ratings. While labeled recipes have slightly lower median ratings, the difference is small.
+#### Box Plot: Rating by Label Type 
+The following boxplot shows how the presence of health-related labels affects user ratings. Recipes labeled as "free_of_something" have slightly **lower median ratings**, but the overall distribution overlaps heavily with unlabeled recipes. This suggests that health labels do **not strongly affect ratings**, although there may be subtle biases in perception or recipe complexity.
 
 <iframe
   src="assets/rating_by_label_boxplot.html"
@@ -66,7 +122,18 @@ The following boxplot shows how the presence of health-related labels affects us
   frameborder="0"
 ></iframe>
 
-This scatter plot explores the relationship between `healthy_index` and `average_rating`. A slight negative correlation suggests healthier recipes may receive marginally lower ratings.
+#### Line Plot: Health Labels Nutritional Trends
+Here is a line plot showing the average `healthy_index` over time for different label categories. Most health-labeled groups remained **below the overall average** in healthy index, particularly `gluten_free` and `free_of_something`. Surprisingly, some health-labeled recipes are **not significantly healthier** than unlabeled ones, especially in recent years. This reinforces concerns about the **accuracy of health labels**.
+
+<iframe
+  src="assets/healthy_index_trend_by_year.html"
+  width="800"
+  height="500"
+  frameborder="0"
+></iframe>
+
+#### Scatter Plot: Healthy Index vs Ratings Relationship
+This scatter plot explores the relationship between `healthy_index` and `average_rating`. There is **no strong correlation** between nutritional health and user ratings. The trendline is nearly flat, and both healthy-labeled and unlabeled recipes are spread across the entire rating range. This suggests users do not consistently reward healthier recipes with higher ratings.
 
 <iframe
   src="assets/healthy_index_vs_rating_scatter.html"
@@ -79,9 +146,10 @@ This scatter plot explores the relationship between `healthy_index` and `average
 
 ### Interesting Aggregates
 
-The table below shows average healthy index values for recipes grouped by label category:
+To better understand how health-related labels are used together, I computed the **percentage overlap** between each pair of label categories.
 
-```markdown
+The table below shows, for example, that **45.9%** of recipes labeled `"healthy"` are also labeled `"low_in_something"`, while only **2.5%** of `"gluten_free"` recipes overlap with `"low_in_something"`.
+
 |                   | low_in_something    | low_fat             | low_carb           | healthy           | gluten_free       |
 |:------------------|:--------------------|:--------------------|:-------------------|:------------------|:------------------|
 | healthy           | 14564/31727 (45.9%) | 10884/17363 (62.7%) | 5069/26136 (19.4%) | nan               | nan               |
@@ -89,18 +157,11 @@ The table below shows average healthy index values for recipes grouped by label 
 | gluten_free       | 800/31484 (2.5%)    | 359/13881 (2.6%)    | 390/16808 (2.3%)   | 443/18302 (2.4%)  | nan               |
 | low_fat           | 11871/29915 (39.7%) | nan                 | nan                | nan               | nan               |
 | low_carb          | 14829/29915 (49.6%) | 4751/21949 (21.6%)  | nan                | nan               | nan               |
-```
 
-Recipes labeled as "healthy" have a slightly better (less negative) healthy index, but slightly lower average ratings. This may reflect a gap between nutritional quality and user preferences.
-
-We also tracked average healthy index by year:
-
-<iframe
-  src="assets/healthy_index_trend_by_year.html"
-  width="800"
-  height="500"
-  frameborder="0"
-></iframe>
+This shows that:
+- Some health tags are often used together (e.g. `"healthy"` + `"low_fat"`),
+- Others are more specialized or niche (e.g. `"gluten_free"`),
+- And overall, labels are **not applied in a consistent or structured way**, which weakens their reliability.
 
 ## Assessment of Missingness
 
@@ -131,7 +192,7 @@ I performed permutation tests to assess:
 ></iframe>
 
 **Permutation Test: Description Missingness vs. Number of Ingredients**  
-Recipes **with** a description had on average more ingredients than those **without** a description. The resulting p-value was **0.001**, suggesting the missingness of `description` **does** depend on `n_ingredients`.
+Recipes **with** a description had on average more ingredients than those **without** a description. The resulting p-value was **0.004**, suggesting the missingness of `description` **does** depend on `n_ingredients`.
 
 <iframe
   src="assets/description_missing_vs_steps.html"
@@ -141,7 +202,7 @@ Recipes **with** a description had on average more ingredients than those **with
 ></iframe>
 
 **Permutation Test: Description Missingness vs. Number of Steps**  
-Here, the p-value was **0.62**, indicating no significant difference in step count between recipes with and without a description. Therefore, we conclude that missingness in `description` **does not** depend on `n_steps`.
+Here, the p-value was **1.000**, indicating no significant difference in step count between recipes with and without a description. Therefore, we conclude that missingness in `description` **does not** depend on `n_steps`.
 
 These tests provide evidence that some observed features help explain missingness patterns — useful context when deciding how to handle missing values.
 
